@@ -23,7 +23,7 @@ jobs:
       - name: Setup Zig 0.15.2
         shell: bash
         run: |
-          curl -L "https://ziglang.org/download/0.15.2/zig-windows-x86_64-0.15.2.zip" -o zig.zip
+          curl -L "https://ziglang.org/download/0.15.2/zig-x86_64-windows-0.15.2.zip" -o zig.zip
           unzip -q zig.zip
           echo "$(pwd)/zig-windows-x86_64-0.15.2" >> $GITHUB_PATH
 
@@ -67,3 +67,4 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
