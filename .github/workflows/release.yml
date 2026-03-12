@@ -29,20 +29,33 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.15.2 # 严格执行官方指南要求的版本
+      - name: Setup Zig 0.15.2 (Direct Download)
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            curl -L https://ziglang.org/download/0.15.2/zig-windows-x86_64-0.15.2.zip -o zig.zip
+            unzip zig.zip
+            echo "$(pwd)/zig-windows-x86_64-0.15.2" >> $GITHUB_PATH
+          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            curl -L https://ziglang.org/download/0.15.2/zig-linux-x86_64-0.15.2.tar.xz -o zig.tar.xz
+            tar -xf zig.tar.xz
+            echo "$(pwd)/zig-linux-x86_64-0.15.2" >> $GITHUB_PATH
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            ARCH="${{ matrix.target == 'aarch64-macos' && 'aarch64' || 'x86_64' }}"
+            curl -L "https://ziglang.org/download/0.15.2/zig-macos-${ARCH}-0.15.2.tar.xz" -o zig.tar.xz
+            tar -xf zig.tar.xz
+            echo "$(pwd)/zig-macos-${ARCH}-0.15.2" >> $GITHUB_PATH
+          fi
 
       - name: Build NullClaw
-        # 严格执行官方构建命令：zig build -Doptimize=ReleaseSmall
+        # 严格执行官方指南要求的 ReleaseSmall 优化
         run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall
 
       - name: Auto-collect Binaries
         shell: bash
         run: |
           mkdir -p output
-          # 自动获取 bin 目录下的产物，确保不论项目名是 nullclaw 还是 Better-NullClaw 都能打包
+          # 自动获取 bin 目录下的产物，确保不论项目名如何都能打包
           BIN_NAME=$(ls zig-out/bin/ | head -n 1)
           if [ -z "$BIN_NAME" ]; then
             echo "Error: No binary found in zig-out/bin/"
