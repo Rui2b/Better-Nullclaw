@@ -3,7 +3,7 @@ name: Build and Release NullClaw
 on:
   push:
     tags:
-      - 'v*' # 当推送到 v1.0.0 等标签时触发
+      - 'v*'
 
 jobs:
   build:
@@ -32,26 +32,35 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v1
         with:
-          version: 0.15.2 # 请根据你的 nullclaw 要求的 Zig 版本修改
+          version: 0.15.2 # 严格执行官方指南要求的版本
 
       - name: Build NullClaw
-        run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseFast
+        # 严格执行官方构建命令：zig build -Doptimize=ReleaseSmall
+        run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall
 
-      - name: Rename binary
+      - name: Auto-collect Binaries
         shell: bash
         run: |
           mkdir -p output
-          cp zig-out/bin/nullclaw${{ matrix.suffix }} output/nullclaw-${{ matrix.target }}${{ matrix.suffix }}
+          # 自动获取 bin 目录下的产物，确保不论项目名是 nullclaw 还是 Better-NullClaw 都能打包
+          BIN_NAME=$(ls zig-out/bin/ | head -n 1)
+          if [ -z "$BIN_NAME" ]; then
+            echo "Error: No binary found in zig-out/bin/"
+            exit 1
+          fi
+          cp "zig-out/bin/$BIN_NAME" "output/${BIN_NAME}-${{ matrix.target }}${{ matrix.suffix }}"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: nullclaw-${{ matrix.target }}
+          name: nullclaw-build-${{ matrix.target }}
           path: output/*
 
   release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -64,5 +73,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: all-artifacts/*
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
