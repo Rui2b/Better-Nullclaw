@@ -10,9 +10,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - target: x86_64-linux
-            os: ubuntu-latest
-            suffix: ""
           - target: x86_64-windows
             os: windows-latest
             suffix: ".exe"
@@ -26,17 +23,18 @@ jobs:
       - name: Setup Zig 0.15.2
         shell: bash
         run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            # 使用官方直接下载链接，确保带上参数处理重定向
-            curl -L "https://ziglang.org/download/0.15.2/zig-windows-x86_64-0.15.2.zip" -o zig.zip
-            unzip -q zig.zip
-            echo "$(pwd)/zig-windows-x86_64-0.15.2" >> $GITHUB_PATH
-          else
-            # Linux 环境下载 .tar.xz
-            curl -L "https://ziglang.org/download/0.15.2/zig-linux-x86_64-0.15.2.tar.xz" -o zig.tar.xz
-            tar -xf zig.tar.xz
-            echo "$(pwd)/zig-linux-x86_64-0.15.2" >> $GITHUB_PATH
+          # 明确指定下载 Windows 版 0.15.2
+          echo "正在从官方源下载 Zig..."
+          curl -L "https://ziglang.org/download/0.15.2/zig-windows-x86_64-0.15.2.zip" -o zig.zip
+          
+          # 检查文件大小，确保下载的不是 404 页面
+          if [ $(stat -c%s "zig.zip") -lt 1000000 ]; then
+            echo "错误: 下载的文件过小，可能是重定向失败或 404"
+            exit 1
           fi
+          
+          unzip -q zig.zip
+          echo "$(pwd)/zig-windows-x86_64-0.15.2" >> $GITHUB_PATH
 
       - name: Build NullClaw
         # 严格执行官方 ReleaseSmall 构建命令
