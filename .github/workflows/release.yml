@@ -23,20 +23,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Zig 0.15.2 (Direct Download)
+      - name: Setup Zig 0.15.2
         shell: bash
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            curl -L https://ziglang.org/download/0.15.2/zig-windows-x86_64-0.15.2.zip -o zig.zip
-            unzip zig.zip
+            # 使用官方直接下载链接，确保带上参数处理重定向
+            curl -L "https://ziglang.org/download/0.15.2/zig-windows-x86_64-0.15.2.zip" -o zig.zip
+            unzip -q zig.zip
             echo "$(pwd)/zig-windows-x86_64-0.15.2" >> $GITHUB_PATH
-          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            curl -L https://ziglang.org/download/0.15.2/zig-linux-x86_64-0.15.2.tar.xz -o zig.tar.xz
+          else
+            # Linux 环境下载 .tar.xz
+            curl -L "https://ziglang.org/download/0.15.2/zig-linux-x86_64-0.15.2.tar.xz" -o zig.tar.xz
             tar -xf zig.tar.xz
             echo "$(pwd)/zig-linux-x86_64-0.15.2" >> $GITHUB_PATH
           fi
 
       - name: Build NullClaw
+        # 严格执行官方 ReleaseSmall 构建命令
         run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall
 
       - name: Auto-collect Binaries
