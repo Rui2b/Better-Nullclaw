@@ -23,24 +23,26 @@ jobs:
       - name: Setup Zig 0.15.2
         shell: pwsh
         run: |
-          # 使用 PowerShell 下载
           Invoke-WebRequest -Uri "https://ziglang.org/download/0.15.2/zig-x86_64-windows-0.15.2.zip" -OutFile "zig.zip"
-          Expand-Archive -Path "zig.zip" -DestinationPath "." -Force
+          Expand-Archive -Path "zig.zip" -DestinationPath "$HOME\zig_tmp" -Force
           
-          # 寻找 zig.exe 的确切位置并存入环境变量
-          $zigPath = (Get-ChildItem -Filter "zig.exe" -Recurse).FullName
+          # 在整个临时目录搜索 zig.exe
+          $zigPath = (Get-ChildItem -Path "$HOME\zig_tmp" -Filter "zig.exe" -Recurse | Select-Object -First 1).FullName
           if (-not $zigPath) { throw "找不到 zig.exe" }
+          
           echo "ZIG_EXE=$zigPath" >> $env:GITHUB_ENV
           Write-Host "Zig 路径已锁定: $zigPath"
 
       - name: Build NullClaw
         shell: pwsh
+        working-directory: ${{ github.workspace }}
         run: |
-          # 使用绝对路径运行
+          # 确保在 build.zig 所在的目录下运行
           & "$env:ZIG_EXE" build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall
 
       - name: Auto-collect Binaries
         shell: bash
+        working-directory: ${{ github.workspace }}
         run: |
           mkdir -p output
           BIN_NAME=$(ls zig-out/bin/ | head -n 1)
