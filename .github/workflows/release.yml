@@ -20,30 +20,41 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Zig 0.15.2
+      - name: Setup Zig and Find Paths
         shell: pwsh
         run: |
+          # 1. 使用你提供的官方链接下载
           Invoke-WebRequest -Uri "https://ziglang.org/download/0.15.2/zig-x86_64-windows-0.15.2.zip" -OutFile "zig.zip"
-          Expand-Archive -Path "zig.zip" -DestinationPath "$HOME\zig_tmp" -Force
+          Expand-Archive -Path "zig.zip" -DestinationPath "$HOME\zig_dist" -Force
           
-          # 在整个临时目录搜索 zig.exe
-          $zigPath = (Get-ChildItem -Path "$HOME\zig_tmp" -Filter "zig.exe" -Recurse | Select-Object -First 1).FullName
-          if (-not $zigPath) { throw "找不到 zig.exe" }
-          
+          # 2. 全盘搜索 zig.exe 确定绝对路径
+          Write-Host "正在扫描虚拟机以锁定 zig.exe..."
+          $zigPath = (Get-ChildItem -Path C:\, D:\ -Filter "zig.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $zigPath) { throw "虚拟机内未找到 zig.exe" }
           echo "ZIG_EXE=$zigPath" >> $env:GITHUB_ENV
-          Write-Host "Zig 路径已锁定: $zigPath"
+          Write-Host "已锁定 Zig 路径: $zigPath"
+          
+          # 3. 全盘搜索 build.zig 确定源码根目录
+          Write-Host "正在扫描虚拟机以锁定 build.zig..."
+          $buildFile = (Get-ChildItem -Path C:\, D:\ -Filter "build.zig" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $buildFile) { throw "虚拟机内未找到 build.zig，请确认源码已成功 Checkout" }
+          $sourceRoot = Split-Path -Parent $buildFile
+          echo "SOURCE_ROOT=$sourceRoot" >> $env:GITHUB_ENV
+          Write-Host "已锁定源码目录: $sourceRoot"
 
       - name: Build NullClaw
         shell: pwsh
-        working-directory: ${{ github.workspace }}
         run: |
-          # 确保在 build.zig 所在的目录下运行
+          # 进入 build.zig 所在的目录
+          cd "$env:SOURCE_ROOT"
+          # 使用绝对路径运行编译
           & "$env:ZIG_EXE" build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall
 
       - name: Auto-collect Binaries
         shell: bash
-        working-directory: ${{ github.workspace }}
         run: |
+          # 同样进入源码目录收集产物
+          cd "$SOURCE_ROOT"
           mkdir -p output
           BIN_NAME=$(ls zig-out/bin/ | head -n 1)
           if [ -z "$BIN_NAME" ]; then
@@ -51,6 +62,8 @@ jobs:
             exit 1
           fi
           cp "zig-out/bin/$BIN_NAME" "output/${BIN_NAME}-${{ matrix.target }}${{ matrix.suffix }}"
+          # 移回工作区根目录以便上传
+          mv output $GITHUB_WORKSPACE/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
