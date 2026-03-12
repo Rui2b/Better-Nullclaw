@@ -23,12 +23,17 @@ jobs:
       - name: Setup Zig 0.15.2
         shell: bash
         run: |
+          # 下载并解压
           curl -L "https://ziglang.org/download/0.15.2/zig-x86_64-windows-0.15.2.zip" -o zig.zip
           unzip -q zig.zip
-          echo "$(pwd)/zig-windows-x86_64-0.15.2" >> $GITHUB_PATH
+          # 将绝对路径存入环境变量，方便下一步调用
+          echo "ZIG_EXE=$(pwd)/zig-windows-x86_64-0.15.2/zig.exe" >> $GITHUB_ENV
 
       - name: Build NullClaw
-        run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall
+        shell: bash
+        run: |
+          # 直接使用绝对路径执行 zig，规避 PATH 找不到的问题
+          $ZIG_EXE build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall
 
       - name: Auto-collect Binaries
         shell: bash
@@ -67,4 +72,3 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
