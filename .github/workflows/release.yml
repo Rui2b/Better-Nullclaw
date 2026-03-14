@@ -21,27 +21,49 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Zig 0.15.2
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.15.2
+        shell: pwsh
+        run: |
+          # 1. 使用你提供的确切链接下载
+          $url = "https://ziglang.org/download/0.15.2/zig-x86_64-windows-0.15.2.zip"
+          Write-Host "正在从 $url 下载 Zig..."
+          Invoke-WebRequest -Uri $url -OutFile "zig.zip"
+          
+          # 2. 解压到 C 盘根目录下的临时文件夹，路径更短更稳
+          $dest = "C:\zig_dist"
+          if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
+          Expand-Archive -Path "zig.zip" -DestinationPath $dest -Force
+          
+          # 3. 暴力全盘搜索 zig.exe 确定路径
+          Write-Host "正在全盘扫描 zig.exe 以确定位置..."
+          $zigPath = (Get-ChildItem -Path C:\, D:\ -Filter "zig.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $zigPath) { throw "虚拟机全盘扫描未找到 zig.exe" }
+          
+          # 4. 锁定路径并存入环境变量
+          echo "ZIG_EXE=$zigPath" >> $env:GITHUB_ENV
+          Write-Host "已锁定 Zig 路径: $zigPath"
 
       - name: Build NullClaw
         shell: pwsh
         run: |
-          # setup-zig 会自动将 zig 加入 PATH，直接调用即可
-          zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall
+          # 确定 build.zig 所在的位置（防止在错误目录下运行）
+          $buildFile = (Get-ChildItem -Path ${{ github.workspace }} -Filter "build.zig" -Recurse | Select-Object -First 1).FullName
+          $sourceRoot = Split-Path -Parent $buildFile
+          cd "$sourceRoot"
+          
+          # 使用绝对路径执行编译
+          & "$env:ZIG_EXE" build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall
 
       - name: Auto-collect Binaries
         shell: bash
         run: |
-          mkdir -p output
-          # 搜索编译生成的二进制文件
-          BIN_NAME=$(ls zig-out/bin/ | head -n 1)
-          if [ -z "$BIN_NAME" ]; then
-            echo "Error: No binary found in zig-out/bin/"
+          # 找到二进制产物
+          BIN_PATH=$(find . -name "*.exe" | grep "zig-out/bin/" | head -n 1)
+          if [ -z "$BIN_PATH" ]; then
+            echo "Error: No binary found"
             exit 1
           fi
-          cp "zig-out/bin/$BIN_NAME" "output/${BIN_NAME}-${{ matrix.target }}${{ matrix.suffix }}"
+          mkdir -p output
+          cp "$BIN_PATH" "output/NullClaw-${{ matrix.target }}${{ matrix.suffix }}"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
